@@ -5,6 +5,7 @@ def __init__(self, user_count, item_count, cate_count, cate_list):
   #hist_i history item list
   #y label (0,1)
   #cate_list item到cate的映射关系, tf 
+  #x 用于计算auc
   self.u = tf.placeholder(tf.int32, [None,]) # [B]
   self.i = tf.placeholder(tf.int32, [None,]) # [B]
   self.j = tf.placeholder(tf.int32, [None,]) # [B]

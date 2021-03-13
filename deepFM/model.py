@@ -21,8 +21,7 @@ class Model(object):
     cate_emb_w = tf.get_variable("cate_emb_w", [cate_count, hidden_units // 2])
     cate_list = tf.convert_to_tensor(cate_list, dtype=tf.int64)
 
-    u_emb = tf.nn.embedding_lookup(user_emb_w, self.u)
-
+    #u_emb = tf.nn.embedding_lookup(user_emb_w, self.u)
     ic = tf.gather(cate_list, self.i)
     i_emb = tf.concat(values = [
         tf.nn.embedding_lookup(item_emb_w, self.i),
@@ -42,6 +41,7 @@ class Model(object):
         tf.nn.embedding_lookup(item_emb_w, self.hist_i),
         tf.nn.embedding_lookup(cate_emb_w, hc),
         ], axis=2)
+
     #-- sum begin --------
     # mask the zero padding part
     mask = tf.sequence_mask(self.sl, tf.shape(h_emb)[1], dtype=tf.float32) # [B, T]
@@ -59,28 +59,39 @@ class Model(object):
     hist = tf.layers.dense(hist, hidden_units)
 
     u_emb = hist
-    #-- fcn begin -------
+    #pos user_item -- fcn begin -------
     din_i = tf.concat([u_emb, i_emb], axis=-1)
     din_i = tf.layers.batch_normalization(inputs=din_i, name='b1')
     d_layer_1_i = tf.layers.dense(din_i, 80, activation=tf.nn.sigmoid, name='f1')
     d_layer_2_i = tf.layers.dense(d_layer_1_i, 40, activation=tf.nn.sigmoid, name='f2')
     d_layer_3_i = tf.layers.dense(d_layer_2_i, 1, activation=None, name='f3')
-    # fm part
+
+    #user_item fm part
     d_layer_fm_i = tf.concat([tf.reduce_sum(u_emb*i_emb, axis=-1, keep_dims=True), tf.gather(u_emb, [0], axis=-1) + tf.gather(i_emb, [0], axis=-1)], axis=-1)
     d_layer_fm_i = tf.layers.dense(d_layer_fm_i, 1, activation=None, name='f_fm')
+
+
+    #neg user_item fcn begin
+    #din_i = tf.concat([u_emb, i_emb], axis=-1)
     din_j = tf.concat([u_emb, j_emb], axis=-1)
     din_j = tf.layers.batch_normalization(inputs=din_j, name='b1', reuse=True)
     d_layer_1_j = tf.layers.dense(din_j, 80, activation=tf.nn.sigmoid, name='f1', reuse=True)
     d_layer_2_j = tf.layers.dense(d_layer_1_j, 40, activation=tf.nn.sigmoid, name='f2', reuse=True)
     d_layer_3_j = tf.layers.dense(d_layer_2_j, 1, activation=None, name='f3', reuse=True)
+
+    #user_cat fm part
     d_layer_fm_j = tf.concat([tf.reduce_sum(u_emb*j_emb, axis=-1, keep_dims=True), tf.gather(u_emb, [0], axis=-1) + tf.gather(j_emb, [0], axis=-1)], axis=-1)
     d_layer_fm_j = tf.layers.dense(d_layer_fm_j, 1, activation=None, name='f_fm', reuse=True)
+
+
     d_layer_3_i = tf.reshape(d_layer_3_i, [-1])
     d_layer_3_j = tf.reshape(d_layer_3_j, [-1])
     d_layer_fm_i = tf.reshape(d_layer_fm_i, [-1])
     d_layer_fm_j = tf.reshape(d_layer_fm_j, [-1])
+
     x = i_b - j_b + d_layer_3_i - d_layer_3_j + d_layer_fm_i - d_layer_fm_j # [B]
     self.logits = i_b + d_layer_3_i + d_layer_fm_i
+
     u_emb_all = tf.expand_dims(u_emb, 1)
     u_emb_all = tf.tile(u_emb_all, [1, item_count, 1])
     # logits for all item:
@@ -110,7 +121,6 @@ class Model(object):
     self.score_j = tf.reshape(self.score_j, [-1, 1])
     self.p_and_n = tf.concat([self.score_i, self.score_j], axis=-1)
     print self.p_and_n.get_shape().as_list()
-
 
     # Step variable
     self.global_step = tf.Variable(0, trainable=False, name='global_step')
